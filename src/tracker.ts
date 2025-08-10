@@ -37,6 +37,8 @@ export class CodeTimeTracker {
     // Load initial values from global state to persist metrics across sessions
     this.commits = this.context.globalState.get<number>('codeCommits', 0);
 
+    this.saveEntries(this.mergePreviousDaysEntries(this.getEntries()));
+
     this.setupListeners();
     this.startErrorMonitor();
     this.setupGitListener();
@@ -224,5 +226,30 @@ export class CodeTimeTracker {
   public getComments(): number {
     // Fetch from the in-memory property for better performance
     return this.context.globalState.get<number>('codeComments', 0);
+  }
+
+  private mergePreviousDaysEntries(entries: TimeEntry[]): TimeEntry[] {
+    // group entries by day, category, workspace, language, collapsing them into single entries
+    // it keeps the first start time and compute the last end time as startime + duration
+    const grouped: { [key: string]: TimeEntry } = {};
+    for (const entry of entries) {
+      const dateKey = new Date(entry.start).toISOString().split('T')[0];
+      const key = `${dateKey}-${entry.category}-${entry.workspace}-${entry.language}`;
+      if (!grouped[key]) {
+        grouped[key] = { ...entry };
+      } else {
+        grouped[key].end = Math.max(grouped[key].end, entry.end);
+      }
+    }
+    // Convert the grouped object back to an array
+    return Object.values(grouped).map(entry => ({
+      ...entry,
+      start: new Date(entry.start).getTime(),
+      end: new Date(entry.end).getTime(),
+    }));
+  }
+
+  private saveEntries(entries: TimeEntry[]) {
+    this.context.globalState.update('codeTimeData', entries);
   }
 }

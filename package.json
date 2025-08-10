@@ -1,6 +1,23 @@
 {
   "name": "dev-diary",
   "displayName": "Dev Diary",
+  "keywords": [
+    "dev-diary",
+    "dev diary",
+    "code time tracking",
+    "programmer profile",
+    "dashboard",
+    "local diary",
+    "productivity",
+    "coding statistics",
+    "developer tools",
+    "time management",
+    "git integration",
+    "error tracking",
+    "coding style",
+    "work rhythm",
+    "software development"
+  ],
   "description": "The ultime local Dev Diary for automatic code time tracking with dashboard and programmer profile.",
   "version": "0.0.2",
   "icon": "media/icon.png",
@@ -35,14 +52,15 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.102.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/vscode": "^1.102.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
-    "eslint": "^9.32.0",
-    "typescript": "^5.9.2",
     "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.32.0",
+    "light-release": "^2.9.1",
+    "typescript": "^5.9.2"
   }
 }

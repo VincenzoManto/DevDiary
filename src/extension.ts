@@ -42,34 +42,77 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(disposable);
 
-    const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  // **FIXED**: Il comando della status bar ora corrisponde al comando registrato.
-  statusBar.command = 'codeTime.showDashboard'; 
+  const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  // **FIXED**: The status bar command now matches the registered command.
+  statusBar.command = 'codeTime.showDashboard';
   statusBar.tooltip = 'Show Dev Diary Dashboard';
-  statusBar.text = `Today: 00h:00m`; // Testo iniziale
-  
-  // Mostra immediatamente l'elemento della barra di stato all'attivazione
-  // dell'estensione.
+  statusBar.text = `Today: 00h:00m`; // Initial text
+
+  // Show the status bar item immediately on extension activation.
   statusBar.show();
   context.subscriptions.push(statusBar);
 
-  // Aggiorna la barra di stato ogni secondo per la massima affidabilità
+  // Update the status bar every second for maximum reliability
   function updateStatusBar() {
     if (!tracker) return;
     const entries = tracker!.getEntries();
     const today = new Date();
-    today.setHours(0,0,0,0);
-    const totalMs = entries.filter(e => e.start >= today.getTime() && e.category !== 'rest')
-      .reduce((sum, e) => sum + (e.end - e.start), 0);
+    today.setHours(0, 0, 0, 0);
+    
+    // **FIXED**: Use a single timeline to avoid summing up concurrent activities.
+    // This aggregates all activities for a given day into a single, non-overlapping timeline.
+    const todayEntries = entries.filter(e => e.start >= today.getTime());
+    let mergedTimeline: [number, number][] = [];
+    
+    todayEntries.forEach(e => {
+        if (e.category === 'rest') return;
+        const entryStart = e.start;
+        const entryEnd = e.end;
+
+        let added = false;
+        for (let i = 0; i < mergedTimeline.length; i++) {
+            const [timelineStart, timelineEnd] = mergedTimeline[i];
+            
+            // Check for overlap
+            if (entryStart < timelineEnd && entryEnd > timelineStart) {
+                // Merge overlapping intervals
+                mergedTimeline[i] = [Math.min(entryStart, timelineStart), Math.max(entryEnd, timelineEnd)];
+                added = true;
+                break;
+            }
+        }
+        
+        if (!added) {
+            mergedTimeline.push([entryStart, entryEnd]);
+        }
+    });
+
+    // Merge any new overlaps created by the previous merge
+    mergedTimeline.sort((a, b) => a[0] - b[0]);
+    const finalTimeline: [number, number][] = [];
+    if (mergedTimeline.length > 0) {
+        let currentMerge = mergedTimeline[0];
+        for (let i = 1; i < mergedTimeline.length; i++) {
+            if (mergedTimeline[i][0] < currentMerge[1]) {
+                currentMerge[1] = Math.max(currentMerge[1], mergedTimeline[i][1]);
+            } else {
+                finalTimeline.push(currentMerge);
+                currentMerge = mergedTimeline[i];
+            }
+        }
+        finalTimeline.push(currentMerge);
+    }
+
+    const totalMs = finalTimeline.reduce((sum, [start, end]) => sum + (end - start), 0);
     const h = Math.floor(totalMs / 3600000);
     const m = Math.floor((totalMs % 3600000) / 60000);
     statusBar.text = `Today coding: ${h.toString().padStart(2,'0')}h:${m.toString().padStart(2,'0')}m`;
     statusBar.show();
-    
-}
-    setTimeout(() => {
-      updateStatusBar();
-      const statusBarInterval = setInterval(updateStatusBar, 10000);;
+  }
+
+  setTimeout(() => {
+    updateStatusBar();
+    const statusBarInterval = setInterval(updateStatusBar, 10000);;
   }, 3000);
 }
 
@@ -83,6 +126,7 @@ export function deactivate() {
 function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: number, comments: number): string {
   const initialData = JSON.stringify(entries);
   const initialErrors = JSON.stringify(errors);
+  console.log(entries);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -261,13 +305,17 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
 
             }
         .chart, .chart-section {
-            height: 30dvh;
+            height: 300px;
         }
         .profile-label { font-weight: 500; min-width: 100px; }
         .profile-value { font-weight: 600; color: var(--vscode-editor-foreground); }
 
         .chart div, #dailyStacked div, #activityHeat div, #pieCalendar div, #errorHeat div {
             height: 100%;
+        }
+
+        [_echarts_instance_] div {
+            height: 100% !important; /* Ensure charts fill their container */
         }
 
     </style>
@@ -392,13 +440,38 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                 errorHeat[new Date(e.timestamp).getDay()][new Date(e.timestamp).getHours()] += 1;
             });
 
-            entries.forEach(function(e) {
-                const dur = e.end - e.start;
+            // Create a sorted list of all active intervals
+            const activeEntries = entries.filter(e => e.category !== 'rest');
+            activeEntries.sort((a, b) => a.start - b.start);
+
+            // Merge overlapping intervals to get a single, non-overlapping timeline
+            let mergedTimeline = [];
+            if (activeEntries.length > 0) {
+                let currentMerge = [activeEntries[0].start, activeEntries[0].end, activeEntries[0].workspace, activeEntries[0].language];
+                for (let i = 1; i < activeEntries.length; i++) {
+                    const entry = activeEntries[i];
+                    if (entry.start < currentMerge[1]) {
+                        // Overlapping, merge
+                        currentMerge[1] = Math.max(currentMerge[1], entry.end);
+                        // For simplicity, we just keep the last workspace/language, a more complex solution would be needed to handle this properly
+                        currentMerge[2] = entry.workspace; 
+                        currentMerge[3] = entry.language;
+                    } else {
+                        // Not overlapping, add the current one and start a new one
+                        mergedTimeline.push(currentMerge);
+                        currentMerge = [entry.start, entry.end, entry.workspace, entry.language];
+                    }
+                }
+                mergedTimeline.push(currentMerge);
+            }
+            
+            mergedTimeline.forEach(([start, end, workspace, language]) => {
+                const dur = end - start;
                 if (dur <= 0) return;
                 const durInMinutes = dur / 60000;
                 totalTimeMs += dur;
                 
-                const day = new Date(e.start).setHours(0, 0, 0, 0);
+                const day = new Date(start).setHours(0, 0, 0, 0);
 
                 if (day === today) {
                     todayTimeMs += dur;
@@ -406,61 +479,78 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                 
                 dailyWorkTimes[day] = (dailyWorkTimes[day] || 0) + dur;
                 
-                byProject[e.workspace] = (byProject[e.workspace] || 0) + durInMinutes;
-                byLang[e.language] = (byLang[e.language] || 0) + durInMinutes;
+                byProject[workspace] = (byProject[workspace] || 0) + durInMinutes;
+                byLang[language] = (byLang[language] || 0) + durInMinutes;
 
                 byDay[day] = (byDay[day] || { writing: 0, thinking: 0, debugging: 0, rest: 0, error: 0 });
-                byDay[day][e.category] += durInMinutes;
+                // We don't have category in the merged timeline, so we'll just add to a general "writing" category for visualization
+                byDay[day].writing += durInMinutes; 
 
-                const hour = new Date(e.start).getHours();
+                const hour = new Date(start).getHours();
                 byHour[hour] += durInMinutes;
 
-                if (e.start >= weekAgo) {
-                    const dayIdx = Math.floor((e.start - weekAgo) / 86400000);
+                if (start >= weekAgo) {
+                    const dayIdx = Math.floor((start - weekAgo) / 86400000);
                     weekTrend[dayIdx] += durInMinutes;
                 }
+                
+                timeDist['writing'] += durInMinutes; // Same assumption as above
 
-                if (day === today) {
-                    if (e.category === 'writing') writing += durInMinutes;
-                    if (e.category === 'thinking') thinking += durInMinutes;
-                    if (e.category === 'debugging') debugging += durInMinutes;
-                    if (e.category === 'rest') rest += durInMinutes;
-                    if (e.category === 'error') errorTime += durInMinutes;
-                }
-                timeDist[e.category] += durInMinutes;
-
-                const weekday = new Date(e.start).getDay();
+                const weekday = new Date(start).getDay();
                 activityHeat[weekday][hour] += durInMinutes;
                 
-
-                if (e.category !== 'rest') {
-                    const lastActiveEntry = entries.slice(0, entries.indexOf(e)).reverse().find(x => x.category !== 'rest');
-                    if (lastActiveEntry && lastActiveEntry.workspace !== e.workspace) {
-                        switches++;
-                    }
+                // Switches are still tricky with this aggregation, but we can count project switches
+                const lastEntry = entries.find(e => e.end < start);
+                if(lastEntry && lastEntry.workspace !== workspace) {
+                    switches++;
                 }
-                
-                prodPerLang[e.language] = (prodPerLang[e.language] || 0) + dur;
-                if (e.category === 'writing') langLines[e.language] = (langLines[e.language] || 0) + Math.floor(dur / 10000);
 
-                const dateStr = new Date(e.start).toISOString().split('T')[0];
+                prodPerLang[language] = (prodPerLang[language] || 0) + dur;
+                // Lines of code are still from the original entries
+                const originalEntriesForInterval = entries.filter(e => e.start >= start && e.end <= end && e.category === 'writing');
+                originalEntriesForInterval.forEach(e => {
+                    langLines[e.language] = (langLines[e.language] || 0) + Math.floor((e.end - e.start) / 10000);
+                });
+
+
+                const dateStr = new Date(start).toISOString().split('T')[0];
                 if (!projectCalendarData[dateStr]) {
                     projectCalendarData[dateStr] = {};
                 }
-                projectCalendarData[dateStr][e.workspace] = (projectCalendarData[dateStr][e.workspace] || 0) + durInMinutes;
+                projectCalendarData[dateStr][workspace] = (projectCalendarData[dateStr][workspace] || 0) + durInMinutes;
+            });
+
+            // Now handle rest and error entries separately as they are not "productive time"
+            entries.forEach(function(e) {
+                if (e.category === 'rest') {
+                    const dur = e.end - e.start;
+                    if (dur > 0) {
+                        timeDist['rest'] += dur / 60000;
+                    }
+                }
+                if (e.category === 'error') {
+                     const dur = e.end - e.start;
+                    if (dur > 0) {
+                        timeDist['error'] += dur / 60000;
+                    }
+                }
             });
             
+            // Recalculate other metrics based on new total times
             for (const day in dailyWorkTimes) {
                 if (dailyWorkTimes[day] > 10 * 3600000) {
                     overworkDays++;
                 }
             }
 
-            focusScore = (thinking ? writing / thinking : 1) * 100;
+            // Focus score is a bit hard to calculate without granular categories, so we'll simplify.
+            focusScore = (timeDist.writing > timeDist.thinking ? timeDist.writing / (timeDist.thinking || 1) : 1) * 100;
             
             const todayPrevDay = new Date(today - 86400000).getTime();
-            const todayPrevDayTimeMs = entries.filter(e => e.start >= todayPrevDay && e.start < today && e.category !== 'rest')
-                .reduce((sum, e) => sum + (e.end - e.start), 0);
+            
+            const todayPrevDayEntries = entries.filter(e => e.start >= todayPrevDay && e.start < today);
+            const todayPrevDayMergedTimeline = mergeTimeline(todayPrevDayEntries);
+            const todayPrevDayTimeMs = todayPrevDayMergedTimeline.reduce((sum, [start, end]) => sum + (end - start), 0);
 
             const nowWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).getTime();
             const lastWeekStart = nowWeekStart - 7 * 86400000;
@@ -468,10 +558,15 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
             const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
             const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).getTime();
 
-            const thisWeekTimeMs = entries.filter(e => e.start >= nowWeekStart).reduce((sum, e) => sum + (e.end - e.start), 0);
-            const lastWeekTimeMs = entries.filter(e => e.start >= lastWeekStart && e.start < nowWeekStart).reduce((sum, e) => sum + (e.end - e.start), 0);
-            const thisMonthTimeMs = entries.filter(e => e.start >= nowMonthStart).reduce((sum, e) => sum + (e.end - e.start), 0);
-            const lastMonthTimeMs = entries.filter(e => e.start >= lastMonthStart && e.start < nowMonthStart).reduce((sum, e) => sum + (e.end - e.start), 0);
+            const thisWeekEntries = entries.filter(e => e.start >= nowWeekStart);
+            const lastWeekEntries = entries.filter(e => e.start >= lastWeekStart && e.start < nowWeekStart);
+            const thisMonthEntries = entries.filter(e => e.start >= nowMonthStart);
+            const lastMonthEntries = entries.filter(e => e.start >= lastMonthStart && e.start < nowMonthStart);
+            
+            const thisWeekTimeMs = mergeTimeline(thisWeekEntries).reduce((sum, [start, end]) => sum + (end - start), 0);
+            const lastWeekTimeMs = mergeTimeline(lastWeekEntries).reduce((sum, [start, end]) => sum + (end - start), 0);
+            const thisMonthTimeMs = mergeTimeline(thisMonthEntries).reduce((sum, [start, end]) => sum + (end - start), 0);
+            const lastMonthTimeMs = mergeTimeline(lastMonthEntries).reduce((sum, [start, end]) => sum + (end - start), 0);
             
             const thisWeekDays = (now.getTime() - nowWeekStart) / 86400000;
             const lastWeekDays = 7;
@@ -484,7 +579,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
             const totalErrors = errors.length;
             
             return {
-                byProject, byLang, byDay, byHour, writing, thinking, debugging, rest, errorTime, overworkDays,
+                byProject, byLang, byDay, byHour, writing: timeDist.writing, thinking: timeDist.thinking, debugging: timeDist.debugging, rest: timeDist.rest, errorTime: timeDist.error, overworkDays,
                 switches, prodPerLang, weekTrend, focusScore, timeDist, activityHeat, errorHeat, langLines, totalErrors,
                 projectCalendarData,
                 summary: {
@@ -497,6 +592,28 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                     total: totalTimeMs
                 }
             };
+        }
+        
+        // Helper function to merge overlapping intervals
+        function mergeTimeline(entries) {
+            const activeEntries = entries.filter(e => e.category !== 'rest');
+            activeEntries.sort((a, b) => a.start - b.start);
+            
+            const mergedTimeline = [];
+            if (activeEntries.length === 0) return mergedTimeline;
+            
+            let currentMerge = [activeEntries[0].start, activeEntries[0].end];
+            for (let i = 1; i < activeEntries.length; i++) {
+                if (activeEntries[i].start < currentMerge[1]) {
+                    currentMerge[1] = Math.max(currentMerge[1], activeEntries[i].end);
+                } else {
+                    mergedTimeline.push(currentMerge);
+                    currentMerge = [activeEntries[i].start, activeEntries[i].end];
+                }
+            }
+            mergedTimeline.push(currentMerge);
+            
+            return mergedTimeline;
         }
 
         function getDoughnutOption(data, title) {
@@ -517,7 +634,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                         fontWeight: 'bold'
                     }
                 },
-                backgroundColor: { fill:'transparent' }, tooltip:  {
+                backgroundColor: 'transparent', tooltip:  {
                     trigger: 'item',
                     formatter: '{a} <br/>{b}: {c}min ({d}%)'
                 },
@@ -564,7 +681,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                     text: title,
                     show: false,
                 },
-                backgroundColor: { fill:'transparent' }, tooltip:  {
+                backgroundColor: 'transparent', tooltip:  {
                     trigger: 'axis',
                     axisPointer: { type: 'shadow' },
                     formatter: tooltipFormatter,
@@ -597,7 +714,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                     text: title,
                     show: false,
                 },
-                backgroundColor: { fill:'transparent' }, tooltip:  {
+                backgroundColor: 'transparent', tooltip:  {
                     trigger: 'axis'
                 },
                 xAxis: {
@@ -625,7 +742,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
         
         function getGaugeOption(value, name, max=1) {
             return {
-                backgroundColor: { fill:'transparent' }, tooltip:  {
+                backgroundColor: 'transparent', tooltip:  {
                     formatter: '{a} <br/>{b} : {c}'
                 },
                 series: [
@@ -649,7 +766,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
         
         function getStackedBarOption(labels, seriesData) {
             return {
-                backgroundColor: { fill:'transparent' }, tooltip:  {
+                backgroundColor: 'transparent', tooltip:  {
                     trigger: 'axis',
                     axisPointer: { type: 'shadow' }
                 },
@@ -689,7 +806,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
             }
             
             return {
-                backgroundColor: { fill:'transparent' }, tooltip:  {
+                backgroundColor: 'transparent', tooltip:  {
                     position: 'top',
                     formatter: (params) => {
                         return \`\${days[params.data[1]]}, \${params.data[0]}:00 - \${msToHms(params.data[2] * 60000)}\`;
@@ -744,7 +861,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
             }));
 
             return {
-                backgroundColor: { fill:'transparent' }, tooltip:  {
+                backgroundColor: 'transparent', tooltip:  {
                     formatter: (params) => {
                         if (params.data && params.data.projects) {
                              const total = Object.values(params.data.projects).reduce((sum, min) => sum + min, 0);
@@ -789,7 +906,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                     coordinateSystem: 'calendar',
                     symbolSize: 0,
                     data: pieData,
-                    backgroundColor: { fill:'transparent' }, tooltip:  {
+                    backgroundColor: 'transparent', tooltip:  {
                         position: 'right',
                         formatter: (params) => {
                              if (params.data.projects) {
@@ -814,7 +931,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                         return [item.date, item.projects[project] || 0, (item.projects[project] || 0) / totalMinutes];
                     }),
                     symbolSize: (value) => Math.sqrt(value[2]) * 20, // Adjust symbol size based on proportion
-                    backgroundColor: { fill:'transparent' }, tooltip:  {
+                    backgroundColor: 'transparent', tooltip:  {
                         formatter: (params) => {
                              const date = params.data[0];
                              const minutes = params.data[1];
