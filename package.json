@@ -1,6 +1,8 @@
 {
   "name": "dev-diary",
   "displayName": "Dev Diary",
+  "publisher": "VincenzoManto",
+  "author": "Vincenzo Manto",
   "keywords": [
     "dev-diary",
     "dev diary",
@@ -19,7 +21,7 @@
     "software development"
   ],
   "description": "The ultime local Dev Diary for automatic code time tracking with dashboard and programmer profile.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
