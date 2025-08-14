@@ -16,6 +16,12 @@ Dev Diary is the ultimate **local** developer diary for automatic code time trac
 - **Overwork Detection**: Warns about overworking based on daily coding hours.
 - **Multitasking Detection**: Identifies multitasking behavior and provides insights.
 
+## Usage
+
+For the moment, you can install it or customize it (following LICENSE) as `vsix`:
+
+[Release](https://github.com/VincenzoManto/DevDiary/tags)
+
 ## Limitations
 - **Local Only**: The extension is designed to work locally and does not support cloud synchronization. Thus, multi-device usage is not supported.
 
