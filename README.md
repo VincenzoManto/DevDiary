@@ -22,6 +22,13 @@ For the moment, you can install it or customize it (following LICENSE) as `vsix`
 
 [Release](https://github.com/VincenzoManto/DevDiary/tags)
 
+## Important: VS Code Marketplace Publication Policy
+This project is open-source and distributed under the MIT license. You are free to use, modify, and distribute the code for your personal purposes.
+
+However, to maintain the integrity and consistency of the project, we kindly ask you not to publish modified versions of this extension on the Visual Studio Code Marketplace. Official publication is reserved for the original project.
+
+If you have an idea for an improvement or a new feature, we encourage you to submit a pull request. Collaboration is welcome!
+
 ## Limitations
 - **Local Only**: The extension is designed to work locally and does not support cloud synchronization. Thus, multi-device usage is not supported.
 
