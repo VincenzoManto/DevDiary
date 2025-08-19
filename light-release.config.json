@@ -1,0 +1,25 @@
+{
+  "generateMarkdown": true,
+  "generateHTML": true,
+  "releaseNotesDir": ".release-notes",
+  "badgeStyle": "flat-square",
+  "dateFormat": "YYYY-MM-DD",
+  "autoCommit": false,
+  "baseUrl": ".",
+  "omitAuthor": false,
+  "blockIfChangesExist": true,
+  "aiComment": {
+    "enabled": false,
+    "openAIKey": null,
+    "prompt": "Generate a release note for the following changes:"
+  },
+  "squashIntoSingleVersioning": true,
+  "showCommitImpact": true,
+  "showAuthorLinks": true,
+  "versionFileName": "package.json",
+  "defaultImpactThresholds": {
+    "low": 1,
+    "medium": 5,
+    "high": 10
+  }
+}

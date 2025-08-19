@@ -16,7 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
     const errors = tracker!.getErrors();
     const commits = tracker!.getCommits();
     const comments = tracker!.getComments();
-    panel.webview.html = getDashboardHtml(entries, errors, commits, comments);
+    panel.webview.html = getDashboardHtml(context, panel.webview, entries, errors, commits, comments);
 
     panel.webview.onDidReceiveMessage((message) => {
       if (message.type === 'requestData') {
@@ -123,10 +123,14 @@ export function deactivate() {
   }
 }
 
-function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: number, comments: number): string {
+function getDashboardHtml(context: vscode.ExtensionContext , webview: vscode.Webview, entries: TimeEntry[], errors: ErrorEntry[], commits: number, comments: number): string {
   const initialData = JSON.stringify(entries);
   const initialErrors = JSON.stringify(errors);
-  console.log(entries);
+  const onDiskPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.png');
+
+// Convert the local file URI to a webview URI
+// This is the crucial step that makes it work in the webview
+const iconPath = webview.asWebviewUri(onDiskPath);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -268,8 +272,8 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
             border: 1px solid #333;
         }
         .profile-avatar {
-            width: 60px;
-            height: 60px;
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
             background: #007acc;
             display: flex;
@@ -278,11 +282,22 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
             font-size: 36px;
             color: #fff;
         }
+            .card-icon {
+                position: absolute;
+                right: 0;
+                top: 0;
+                margin: 1.3rem;
+                width: 150px;
+                height: 150px;
+            }
         .profile-info { flex: 1; }
         .profile-info h2 {
             margin: 0 0 8px 0;
             font-size: 1.5em;
             color: var(--vscode-editor-foreground);
+        }
+        .profile-info p {
+            font-size: 0.9em;
         }
         .profile-row {
             display: flex;
@@ -346,6 +361,7 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
                 <h2>Total Coding Time</h2>
                 <div class="time" id="totalTime">0h 0m</div>
                 <div class="comparison">since tracking began</div>
+                <img src="${iconPath}" class="card-icon">
             </div>
         </div>
 
@@ -982,22 +998,147 @@ function getDashboardHtml(entries: TimeEntry[], errors: ErrorEntry[], commits: n
             document.getElementById('gitCommits').textContent = \`\${commits} commits\`;
             document.getElementById('comments').textContent = \`\${comments} comments\`;
 
-            let finalProfileDescription = \`You are a \${workRhythm} programmer who prefers \${document.getElementById('codingStyle').textContent} coding style.\`;
-            if (agg.specialization) finalProfileDescription += \` Your specialization is \${agg.specialization}.\`;
-            if (agg.multitask > 3) finalProfileDescription += \` You tend to multitask a lot with \${agg.multitask} switches.\`;
-            else finalProfileDescription += \` You focus on one project at a time.\`;
-            if (agg.overwork > 0) finalProfileDescription += \` You have \${agg.overwork} days of overworking (more than 10h).\`;
-            else finalProfileDescription += \` You maintain a healthy work-life balance.\`;
-            if (agg.totalErrors > 100) finalProfileDescription += \` You are a Pro! You have tracked \${agg.totalErrors} errors.\`;
-            else finalProfileDescription += \` Your code is clean with only \${agg.totalErrors} errors tracked.\`;
-            if (${comments} > 1e3) finalProfileDescription += \` You are a great communicator with \${comments} comments.\`;
-            else if (${comments} > 100) finalProfileDescription += \` Come with those comments... just \${comments} comments is bleah...\`;
-            else finalProfileDescription += \` You could improve your comments with only \${comments} comments.\`;
-            if (${commits} > 1000) finalProfileDescription += \` You are a Git master with \${commits} commits.\`;
-            else if (${commits} > 100) finalProfileDescription += \` A quite good Git user with \${commits} commits.\`;
-            else finalProfileDescription += \` Do better Git usage... only \${commits} commits is shameful.\`;
+            const workRhythmPhrases = {
+                'Morning Person': [
+                    "You're a true morning person! You get your best coding done before the coffee pot even finishes brewing.",
+                    "You're an early bird catching the code worm. The morning is your kingdom.",
+                    "Sun's out, fingers on the keyboard! You're a beacon of morning productivity.",
+                    "The first rays of sun are your signal to start coding. You're fueled by sunrise and good code.",
+                    "Your commits are a testament to the phrase 'the early bird gets the worm.' A real morning superstar."
+                ],
+                'Night Owl': [
+                    "Ah, a classic night owl! Your code comes alive when the rest of the world is asleep.",
+                    "The moon is your sun, the night is your day. You're a nocturnal coding genius.",
+                    "You're powered by late-night snacks and the hum of your PC. The night shift is your jam.",
+                    "Your most productive hours are a mystery to the daylight. The night belongs to you and your code.",
+                    "While others dream, you are building the future. A true master of the late-night craft."
+                ],
+                'Normal': [
+                    "Your work rhythm is as balanced as a perfectly sorted array. Keep up the good work!",
+                    "You're a steady coder, putting in the hours like clockwork. The 9-to-5 life suits you.",
+                    "A normal rhythm for a non-normal coder. You're consistent, and that's a superpower.",
+                    "You're a testament to consistency, proving that a steady pace wins the race.",
+                    "No extremes here, just solid, reliable coding. You are the dependable one. Keep it up!"
+                ]
+            };
 
+            const codingStylePhrases = {
+                'Thinker': [
+                    "You're a deep thinker, probably solving the problem in your head before typing a single line.",
+                    "You spend more time pondering than a philosopher, and your code is all the better for it.",
+                    "Patience is your virtue. You're a coding strategist, not a speed demon.",
+                    "Your code is sparse but brilliant, a clear sign you think more than you type.",
+                    "You are a master of pre-emptive problem-solving. 'Ready, aim, code!'"
+                ],
+                'Doer': [
+                    "You're a 'doer.' You dive right in, typing furiously and figuring it out as you go.",
+                    "No time for planning, you just write the code and make it work. A true action hero!",
+                    "Your keyboard is on fire! You're the embodiment of pure coding momentum.",
+                    "You're a coding sprinter, getting to the solution at breakneck speed. 'Why think when you can code?'",
+                    "Your git log is a story of continuous action, a testament to your hands-on approach."
+                ],
+                'Focused Coder': [
+                    "You're a focused coder. When you get in the zone, nothing can pull you out.",
+                    "Your sessions are as long and uninterrupted as a movie marathon. Highly focused!",
+                    "Distractions? What are those? You are the definition of deep work."
+                ]
+            };
+            
+            const multitaskingPhrases = {
+                'Multitasker': [
+                    "You're a multitasking artist, with more open projects than a web browser with 20 tabs.",
+                    "You're a pioneer, hopping between projects like a bunny in a field. Who said you can't do it all?",
+                    "Your mind is a maze of interconnected projects. Some call it chaos, we call it genius."
+                ],
+                'Focused': [
+                    "You're a single-project focus person. One project at a time, until it's perfect.",
+                    "Your specialization is your strength. You are like a sniper, with one objective in mind.",
+                    "You are not a fan of multitasking. You prefer to finish one project before moving to the next."
+                ]
+            };
+
+            const overworkPhrases = {
+                'Warning!': [ 
+                    "Easy there, tiger! You've been overworking. Remember to take a break or you'll burn out, and not in a good way!",
+                    "You've been pulling some serious all-nighters. Your computer loves it, but your body needs rest!",
+                    "Looks like you're on the fast track to burnout. Take a step back and breathe. You are not a machine!",
+                ],
+                'All good!': [
+                    "All good! You maintain a healthy work-life balance. Your future self thanks you, but your job might not.",
+                    "You're a pro at pacing yourself. Keep this healthy rhythm! Sometimes you should work more, but not today.",
+                    "You're a model of good work habits. No signs of overworking here! Keep it up!"
+                ]
+            };
+            
+            const commitsPhrases = {
+                'Many Commits': [
+                    "Your commit history is a novel of continuous improvement, filled with tiny, perfect chapters. Hoping your git history is not messed up like mine!",
+                    "You commit more than a couple on a first date. Your changes are frequent and well-documented, but I don't want to see your git log!",
+                    "You're a master of micro-commits, building your projects one tiny, perfect step at a time and you are proud of it.",
+                    "Your commits are a testament to your progress. You're a true champion of version control, at least in your own mind.",
+                    "You're not afraid of making mistakes, as long as you can 'git commit' and fix them later. Keep it up!"
+                ],
+                'Few Commits': [
+                    "You're a classic 'big bang' committer. When you commit, you make sure it's worth it, but you could use more frequent updates.",
+                    "Your commits are as rare as a unicorn. When they do appear, they are epic. Stop being lazy!",
+                    "You prefer to work in the shadows, revealing a perfectly finished product in one fell swoop... you gonna miss something sooner or later.",
+                    "Your projects are a work of art, a single, complete sculpture rather than a collection of small pieces. Sometimes you are a bit lazy.",
+                    "You're a coding ninja, leaving no trace until the mission is complete. Your commits are the final, victorious flourish. Consider using more commits to document your progress!"
+                ]
+            };
+            
+            const commentsPhrases = {
+                'Many Comments': [
+                    "Your code is so well-commented, it's like a storybook for other developers. Be proud of your documentation skills!",
+                    "You're the librarian of your code, meticulously documenting every line for future generations. Keep it up!",
+                    "Your comments are an art form. You're a poet who just happens to write code. Maybe you should consider writing a book!",
+                    "You write comments like a teacher, guiding your students through the difficult parts of your code. What about writing code sometimes?",
+                    "You're a coding philanthropist, making sure every line of your code is understood and appreciated. You should be a coder but instead you are a writer, change your career!"
+                ],
+                'No Comments': [
+                    "The only thing you've commented on is the pizza you ate. Your code is so clean, it needs no explanation. You are a true minimalist!",
+                    "You let your code speak for itself. You are a minimalist coder, and your code is a masterpiece of simplicity (or maybe you are just lazy).",
+                "Your code is the living proof that good code needs no comments. A true master of lazyness! Hoping your code is self-explanatory.",
+                    "Your code is so intuitive and self-explanatory, comments would only clutter it. If your code'd need comments, it would be a mess.",
+                    "You're a coding purist. No room for unnecessary text, just pure, beautiful code. Hoping your code at least compiles without errors!"
+                ]
+            };
+
+            // Logic to select a random phrase and build the description
+            const get_random_phrase = (phrases) => phrases[Math.floor(Math.random() * phrases.length)];
+
+            let finalProfileDescription = \`
+                \${get_random_phrase(workRhythmPhrases[document.getElementById('workRhythm').textContent])}
+                \${get_random_phrase(codingStylePhrases[document.getElementById('codingStyle').textContent])}
+            \`;
+
+            // Add random phrases for other scenarios
+            if (agg.multitaskDays > 0) {
+                finalProfileDescription += \` \${get_random_phrase(multitaskingPhrases['Multitasker'])}\`;
+            } else {
+                finalProfileDescription += \` \${get_random_phrase(multitaskingPhrases['Focused'])}\`;
+            }
+
+            if (agg.overworkDays > 0) {
+                finalProfileDescription += \` \${get_random_phrase(overworkPhrases['Warning!'])}\`;
+            } else {
+                finalProfileDescription += \` \${get_random_phrase(overworkPhrases['All good!'])}\`;
+            }
+
+            if (agg.commitCount > 10) {
+                finalProfileDescription += \` \${get_random_phrase(commitsPhrases['Many Commits'])}\`;
+            } else {
+                finalProfileDescription += \` \${get_random_phrase(commitsPhrases['Few Commits'])}\`;
+            }
+
+            if (agg.commentCount > 20) {
+                finalProfileDescription += \` \${get_random_phrase(commentsPhrases['Many Comments'])}\`;
+            } else {
+                finalProfileDescription += \` \${get_random_phrase(commentsPhrases['No Comments'])}\`;
+            }
+            
             document.querySelector('.profile-info p').textContent = finalProfileDescription;
+ 
             // Render charts
             createChart('projectDoughnut', getDoughnutOption(Object.entries(agg.byProject).map(([name, value]) => ({name, value})), 'Time per Project'));
             createChart('langBar', getBarOption(Object.keys(agg.byLang), Object.values(agg.byLang), 'Time per Language (min)'));
