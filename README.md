@@ -1,3 +1,5 @@
+![](media/icon.png)
+
 # Dev Diary
 
 Dev Diary is the ultimate **local** developer diary for automatic code time tracking. It provides a dashboard and programmer profile to help developers monitor their productivity and coding habits.
