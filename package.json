@@ -25,7 +25,7 @@
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/VincenzoManto/dev-diary"
+    "url": "https://github.com/VincenzoManto/DevDiary"
   },
   "engines": {
     "vscode": "^1.102.0"
