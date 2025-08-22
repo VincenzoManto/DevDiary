@@ -20,7 +20,11 @@ Dev Diary is the ultimate **local** developer diary for automatic code time trac
 
 ## Usage
 
-For the moment, you can install it or customize it (following LICENSE) as `vsix`:
+We are on VSCode Marketplace!
+
+[VSCode](https://marketplace.visualstudio.com/items?itemName=Vincenzomanto.dev-diary)
+
+Or you can install it or customize it (following LICENSE) as `vsix`:
 
 [Release](https://github.com/VincenzoManto/DevDiary/tags)
 
