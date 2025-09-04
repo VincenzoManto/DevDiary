@@ -43,7 +43,34 @@
         "command": "codeTime.showDashboard",
         "title": "Show Dev Diary Dashboard"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dev-diary",
+          "title": "Dev Diary",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "dev-diary": [
+        {
+          "id": "devDiaryDashboard",
+          "name": "Dev Diary Dashboard",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codeTime.showDashboard",
+          "when": "view == devDiaryDashboard",
+          "group": "navigation@1"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

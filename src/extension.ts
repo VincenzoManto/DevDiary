@@ -1,12 +1,19 @@
 // extension.ts
 import * as vscode from 'vscode';
 import { CodeTimeTracker, TimeEntry, ErrorEntry } from './tracker';
+import { DevDiaryDashboardViewProvider } from './provider';
 
 let tracker: CodeTimeTracker | null = null;
 let panel: vscode.WebviewPanel | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   tracker = new CodeTimeTracker(context);
+
+  const provider = new DevDiaryDashboardViewProvider(context);
+
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider("devDiaryDashboard", provider)
+    );
   let disposable = vscode.commands.registerCommand('codeTime.showDashboard', () => {
     panel = vscode.window.createWebviewPanel('codeTimeDashboard', 'Code Time Tracker Dashboard', vscode.ViewColumn.One, {
       enableScripts: true,
@@ -123,7 +130,7 @@ export function deactivate() {
   }
 }
 
-function getDashboardHtml(context: vscode.ExtensionContext , webview: vscode.Webview, entries: TimeEntry[], errors: ErrorEntry[], commits: number, comments: number): string {
+export function getDashboardHtml(context: vscode.ExtensionContext , webview: vscode.Webview, entries: TimeEntry[], errors: ErrorEntry[], commits: number, comments: number): string {
   const initialData = JSON.stringify(entries);
   const initialErrors = JSON.stringify(errors);
   const onDiskPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.png');
@@ -240,8 +247,11 @@ const iconPath = webview.asWebviewUri(onDiskPath);
             }
         }
         @media (max-width: 799px) {
-            .chart-grid {
-                grid-template-columns: 1fr;
+            .chart-grid, .profile-grid {
+                grid-template-columns: 1fr !important;
+            }
+            .profile-avatar, .profile-row i {
+                display: none !important;
             }
         }
         .chart-grid .chart {
