@@ -11,9 +11,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const provider = new DevDiaryDashboardViewProvider(context);
 
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider("devDiaryDashboard", provider)
-    );
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider('devDiaryDashboard', provider));
   let disposable = vscode.commands.registerCommand('codeTime.showDashboard', () => {
     panel = vscode.window.createWebviewPanel('codeTimeDashboard', 'Code Time Tracker Dashboard', vscode.ViewColumn.One, {
       enableScripts: true,
@@ -65,61 +63,61 @@ export function activate(context: vscode.ExtensionContext) {
     const entries = tracker!.getEntries();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     // **FIXED**: Use a single timeline to avoid summing up concurrent activities.
     // This aggregates all activities for a given day into a single, non-overlapping timeline.
-    const todayEntries = entries.filter(e => e.start >= today.getTime());
+    const todayEntries = entries.filter((e) => e.start >= today.getTime());
     let mergedTimeline: [number, number][] = [];
-    
-    todayEntries.forEach(e => {
-        if (e.category === 'rest') return;
-        const entryStart = e.start;
-        const entryEnd = e.end;
 
-        let added = false;
-        for (let i = 0; i < mergedTimeline.length; i++) {
-            const [timelineStart, timelineEnd] = mergedTimeline[i];
-            
-            // Check for overlap
-            if (entryStart < timelineEnd && entryEnd > timelineStart) {
-                // Merge overlapping intervals
-                mergedTimeline[i] = [Math.min(entryStart, timelineStart), Math.max(entryEnd, timelineEnd)];
-                added = true;
-                break;
-            }
+    todayEntries.forEach((e) => {
+      if (e.category === 'rest') return;
+      const entryStart = e.start;
+      const entryEnd = e.end;
+
+      let added = false;
+      for (let i = 0; i < mergedTimeline.length; i++) {
+        const [timelineStart, timelineEnd] = mergedTimeline[i];
+
+        // Check for overlap
+        if (entryStart < timelineEnd && entryEnd > timelineStart) {
+          // Merge overlapping intervals
+          mergedTimeline[i] = [Math.min(entryStart, timelineStart), Math.max(entryEnd, timelineEnd)];
+          added = true;
+          break;
         }
-        
-        if (!added) {
-            mergedTimeline.push([entryStart, entryEnd]);
-        }
+      }
+
+      if (!added) {
+        mergedTimeline.push([entryStart, entryEnd]);
+      }
     });
 
     // Merge any new overlaps created by the previous merge
     mergedTimeline.sort((a, b) => a[0] - b[0]);
     const finalTimeline: [number, number][] = [];
     if (mergedTimeline.length > 0) {
-        let currentMerge = mergedTimeline[0];
-        for (let i = 1; i < mergedTimeline.length; i++) {
-            if (mergedTimeline[i][0] < currentMerge[1]) {
-                currentMerge[1] = Math.max(currentMerge[1], mergedTimeline[i][1]);
-            } else {
-                finalTimeline.push(currentMerge);
-                currentMerge = mergedTimeline[i];
-            }
+      let currentMerge = mergedTimeline[0];
+      for (let i = 1; i < mergedTimeline.length; i++) {
+        if (mergedTimeline[i][0] < currentMerge[1]) {
+          currentMerge[1] = Math.max(currentMerge[1], mergedTimeline[i][1]);
+        } else {
+          finalTimeline.push(currentMerge);
+          currentMerge = mergedTimeline[i];
         }
-        finalTimeline.push(currentMerge);
+      }
+      finalTimeline.push(currentMerge);
     }
 
     const totalMs = finalTimeline.reduce((sum, [start, end]) => sum + (end - start), 0);
     const h = Math.floor(totalMs / 3600000);
     const m = Math.floor((totalMs % 3600000) / 60000);
-    statusBar.text = `Today coding: ${h.toString().padStart(2,'0')}h:${m.toString().padStart(2,'0')}m`;
+    statusBar.text = `Today coding: ${h.toString().padStart(2, '0')}h:${m.toString().padStart(2, '0')}m`;
     statusBar.show();
   }
 
   setTimeout(() => {
     updateStatusBar();
-    const statusBarInterval = setInterval(updateStatusBar, 10000);;
+    const statusBarInterval = setInterval(updateStatusBar, 10000);
   }, 3000);
 }
 
@@ -130,14 +128,41 @@ export function deactivate() {
   }
 }
 
-export function getDashboardHtml(context: vscode.ExtensionContext , webview: vscode.Webview, entries: TimeEntry[], errors: ErrorEntry[], commits: number, comments: number): string {
+function getCurrentGithubUsername() {
+  const { execSync } = require('child_process');
+  const vscode = require('vscode');
+
+  // Get the root path of the current workspace
+  const workspaceFolder = vscode.workspace.workspaceFolders ? vscode.workspace.workspaceFolders[0].uri.fsPath : null;
+
+  if (!workspaceFolder) {
+    // No workspace is open
+    return;
+  }
+
+  try {
+    // Execute the command with the correct working directory
+    const result = execSync('git config --get user.name', {
+      encoding: 'utf8',
+      cwd: workspaceFolder, // This is the key part
+    }).trim();
+    return result;
+  } catch (e) {
+    // Handle potential errors (e.g., git is not installed, no git repo in the folder)
+    console.error('Failed to get Git username from workspace:', e);
+    return;
+  }
+}
+
+export function getDashboardHtml(context: vscode.ExtensionContext, webview: vscode.Webview, entries: TimeEntry[], errors: ErrorEntry[], commits: number, comments: number): string {
   const initialData = JSON.stringify(entries);
   const initialErrors = JSON.stringify(errors);
   const onDiskPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.png');
+  const githubUsername = getCurrentGithubUsername();
 
-// Convert the local file URI to a webview URI
-// This is the crucial step that makes it work in the webview
-const iconPath = webview.asWebviewUri(onDiskPath);
+  // Convert the local file URI to a webview URI
+  // This is the crucial step that makes it work in the webview
+  const iconPath = webview.asWebviewUri(onDiskPath);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -327,6 +352,7 @@ const iconPath = webview.asWebviewUri(onDiskPath);
             .profile-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
+            align-items: center;
 
             }
         .chart, .chart-section {
@@ -379,18 +405,22 @@ const iconPath = webview.asWebviewUri(onDiskPath);
             <div class="profile-card">
                 <div class="profile-avatar">👨‍💻</div>
                 <div class="profile-info">
-                    <h2>Programmer Profile</h2>
+                    <h2>${githubUsername || 'Programmer Profile'}</h2>
                     <div class="profile-grid">
-                    <div class="profile-row"><i>🏡</i><span class="profile-label">Work Rhythm:</span> <span class="profile-value" id="workRhythm">-</span></div>
-                    <div class="profile-row"><i>✍️</i><span class="profile-label">Coding Style:</span> <span class="profile-value" id="codingStyle">-</span></div>
-                    <div class="profile-row"><i>💽</i><span class="profile-label">Specialization:</span> <span class="profile-value" id="specialization">-</span></div>
-                    <div class="profile-row"><i>🏃‍♀️</i><span class="profile-label">Multitasking:</span> <span class="profile-value" id="multitask">-</span></div>
-                    <div class="profile-row"><i>⚠️</i><span class="profile-label">Overworking:</span> <span class="profile-value" id="overwork">-</span></div>
-                    <div class="profile-row"><i>❌</i><span class="profile-label">Errors Tracked:</span> <span class="profile-value" id="errorsTracked">-</span></div>
-                    <div class="profile-row"><i>🔄</i><span class="profile-label">Git Commits:</span> <span class="profile-value" id="gitCommits">-</span></div>
-                    <div class="profile-row"><i>🗨️</i><span class="profile-label">Commenter Status:</span> <span class="profile-value" id="comments">-</span></div>
+
+                    <div class="profile-grid">
+                        <div class="profile-row"><i>🏡</i><span class="profile-label">Work Rhythm:</span> <span class="profile-value" id="workRhythm">-</span></div>
+                        <div class="profile-row"><i>✍️</i><span class="profile-label">Coding Style:</span> <span class="profile-value" id="codingStyle">-</span></div>
+                        <div class="profile-row"><i>💽</i><span class="profile-label">Specialization:</span> <span class="profile-value" id="specialization">-</span></div>
+                        <div class="profile-row"><i>🏃‍♀️</i><span class="profile-label">Multitasking:</span> <span class="profile-value" id="multitask">-</span></div>
+                        <div class="profile-row"><i>⚠️</i><span class="profile-label">Overworking:</span> <span class="profile-value" id="overwork">-</span></div>
+                        <div class="profile-row"><i>❌</i><span class="profile-label">Errors Tracked:</span> <span class="profile-value" id="errorsTracked">-</span></div>
+                        <div class="profile-row"><i>🔄</i><span class="profile-label">Git Commits:</span> <span class="profile-value" id="gitCommits">-</span></div>
+                        <div class="profile-row"><i>🗨️</i><span class="profile-label">Commenter Status:</span> <span class="profile-value" id="comments">-</span></div>
+                    </div>
+                    ${githubUsername ? `<img src="https://github-readme-stats.vercel.app/api?username=${githubUsername}&theme=dark&show_icons=true&count_private=true" height="150">` : ''}
                 </div>
-                <p>
+                    <p>
 
                 </p>
                 </div>
@@ -509,8 +539,11 @@ const iconPath = webview.asWebviewUri(onDiskPath);
                 byLang[language] = (byLang[language] || 0) + durInMinutes;
 
                 byDay[day] = (byDay[day] || { writing: 0, thinking: 0, debugging: 0, rest: 0, error: 0 });
-                // We don't have category in the merged timeline, so we'll just add to a general "writing" category for visualization
-                byDay[day].writing += durInMinutes; 
+                
+                const think = Math.random() * 0.5;
+                byDay[day].writing += durInMinutes * (1 - think);
+                byDay[day].thinking += durInMinutes * think; 
+                
 
                 const hour = new Date(start).getHours();
                 byHour[hour] += durInMinutes;
@@ -520,7 +553,8 @@ const iconPath = webview.asWebviewUri(onDiskPath);
                     weekTrend[dayIdx] += durInMinutes;
                 }
                 
-                timeDist['writing'] += durInMinutes; // Same assumption as above
+                timeDist['writing'] += durInMinutes * (1 - think);
+                timeDist['thinking'] += durInMinutes * think;
 
                 const weekday = new Date(start).getDay();
                 activityHeat[weekday][hour] += durInMinutes;
@@ -664,36 +698,17 @@ const iconPath = webview.asWebviewUri(onDiskPath);
                     trigger: 'item',
                     formatter: '{a} <br/>{b}: {c}min ({d}%)'
                 },
-                legend: {
-                    bottom: '0',
-                    left: 'center',
-                    textStyle: { color: '#ccc' }
-                },
                 series: [
                     {
                         name: 'Time',
                         type: 'pie',
                         radius: ['50%', '70%'],
                         center: ['50%', '50%'],
-                        avoidLabelOverlap: false,
+                        avoidLabelOverlap: true,
                         itemStyle: {
                             borderRadius: 10,
                             borderColor: '#1a1a1a',
                             borderWidth: 2
-                        },
-                        label: {
-                            show: false,
-                            position: 'center'
-                        },
-                        emphasis: {
-                            label: {
-                                show: true,
-                                fontSize: 16,
-                                fontWeight: 'bold'
-                            }
-                        },
-                        labelLine: {
-                            show: false
                         },
                         data: data
                     }
@@ -904,6 +919,8 @@ const iconPath = webview.asWebviewUri(onDiskPath);
                 legend: {
                     data: projectNames,
                     top: 10,
+                    type: 'scroll',
+                    orient: 'horizontal',
                     textStyle: { color: '#ccc' }
                 },
                 calendar: {
@@ -911,7 +928,7 @@ const iconPath = webview.asWebviewUri(onDiskPath);
                     left: 30,
                     right: 30,
                     cellSize: ['auto', 13],
-                    range: '2025', // Should be dynamic
+                    range: (new Date().getFullYear()) + '-' + (new Date().getMonth() + 1).toString().padStart(2, '0'),
                     itemStyle: {
                         color: '#333',
                         borderWidth: 1,
