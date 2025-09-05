@@ -31,6 +31,8 @@ export class CodeTimeTracker {
   private inputTimeout: ReturnType<typeof setTimeout> | null = null;
   private commits = 0;
   private commentLines = new Set<number>();
+  private files = new Set<string>();
+  private lines = new Set<number>();
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
@@ -109,6 +111,7 @@ export class CodeTimeTracker {
           if (line.startsWith('//') || line.startsWith('/*') || line.startsWith('#')) {
             this.commentLines.add(change.range.start.line);
           }
+          this.lines.add(change.range.start.line);
         }
       }
     }
@@ -196,6 +199,8 @@ export class CodeTimeTracker {
     // Only save the non-time-based metrics here for efficiency
     this.context.globalState.update('codeCommits', this.commits);
     this.context.globalState.update('codeComments', this.commentLines.size);
+    this.context.globalState.update('codeFiles', this.files);
+    this.context.globalState.update('codeLines', this.lines);
   }
 
   private saveEntry(entry: TimeEntry) {
@@ -251,5 +256,13 @@ export class CodeTimeTracker {
 
   private saveEntries(entries: TimeEntry[]) {
     this.context.globalState.update('codeTimeData', entries);
+  }
+
+  public getFiles(): number {
+    return this.context.globalState.get<Set<string>>('codeFiles', new Set()).size;
+  }
+
+  public getLines(): number {
+    return this.context.globalState.get<Set<number>>('codeLines', new Set()).size;
   }
 }

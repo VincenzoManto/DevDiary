@@ -20,6 +20,8 @@ export function activate(context: vscode.ExtensionContext) {
     const entries = tracker!.getEntries();
     const errors = tracker!.getErrors();
     const commits = tracker!.getCommits();
+    const files = tracker!.getFiles();
+    const lines = tracker!.getLines();
     const comments = tracker!.getComments();
     panel.webview.html = getDashboardHtml(context, panel.webview, entries, errors, commits, comments);
 
@@ -417,6 +419,8 @@ export function getDashboardHtml(context: vscode.ExtensionContext, webview: vsco
                         <div class="profile-row"><i>❌</i><span class="profile-label">Errors Tracked:</span> <span class="profile-value" id="errorsTracked">-</span></div>
                         <div class="profile-row"><i>🔄</i><span class="profile-label">Git Commits:</span> <span class="profile-value" id="gitCommits">-</span></div>
                         <div class="profile-row"><i>🗨️</i><span class="profile-label">Commenter Status:</span> <span class="profile-value" id="comments">-</span></div>
+                        <div class="profile-row"><i>📁</i><span class="profile-label">Files Edited:</span> <span class="profile-value" id="filesEdited">-</span></div>
+                        <div class="profile-row"><i>📄</i><span class="profile-label">Lines of Code:</span> <span class="profile-value" id="linesOfCode">-</span></div>
                     </div>
                     ${githubUsername ? `<img src="https://github-readme-stats.vercel.app/api?username=${githubUsername}&theme=dark&show_icons=true&count_private=true" height="150">` : ''}
                 </div>
@@ -1024,6 +1028,8 @@ export function getDashboardHtml(context: vscode.ExtensionContext, webview: vsco
             document.getElementById('errorsTracked').textContent = \`\${agg.totalErrors} errors\`;
             document.getElementById('gitCommits').textContent = \`\${commits} commits\`;
             document.getElementById('comments').textContent = \`\${comments} comments\`;
+            document.getElementById('lines').textContent = \`\${lines} lines\`;
+            document.getElementById('files').textContent = \`\${files} files\`;
 
             const workRhythmPhrases = {
                 'Morning Person': [
