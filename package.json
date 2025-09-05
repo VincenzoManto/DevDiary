@@ -21,7 +21,7 @@
     "software development"
   ],
   "description": "The ultime local Dev Diary for automatic code time tracking with dashboard and programmer profile.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
