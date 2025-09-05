@@ -23,7 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
     const files = tracker!.getFiles();
     const lines = tracker!.getLines();
     const comments = tracker!.getComments();
-    panel.webview.html = getDashboardHtml(context, panel.webview, entries, errors, commits, comments);
+    panel.webview.html = getDashboardHtml(context, panel.webview, entries, errors, lines, files, commits, comments);
 
     panel.webview.onDidReceiveMessage((message) => {
       if (message.type === 'requestData') {
@@ -156,7 +156,7 @@ function getCurrentGithubUsername() {
   }
 }
 
-export function getDashboardHtml(context: vscode.ExtensionContext, webview: vscode.Webview, entries: TimeEntry[], errors: ErrorEntry[], commits: number, comments: number): string {
+export function getDashboardHtml(context: vscode.ExtensionContext, webview: vscode.Webview, entries: TimeEntry[], errors: ErrorEntry[], lines: number, files: number, commits: number, comments: number): string {
   const initialData = JSON.stringify(entries);
   const initialErrors = JSON.stringify(errors);
   const onDiskPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.png');
@@ -1020,6 +1020,8 @@ export function getDashboardHtml(context: vscode.ExtensionContext, webview: vsco
 
             const commits = ${commits || 0};
             const comments = ${comments || 0};
+            const lines = ${lines || 0}; 
+            const files = ${files || 0};
             
             const totalLang = Object.values(agg.byLang).reduce((a, b) => a + b, 0);
             document.getElementById('specialization').textContent = Object.entries(agg.byLang).map(([l, v]) => \`\${l} (\${Math.round(100 * v / totalLang)}%)\`).join(', ');

@@ -31,7 +31,9 @@ export class DevDiaryDashboardViewProvider implements vscode.WebviewViewProvider
     const errors = tracker!.getErrors();
     const commits = tracker!.getCommits();
     const comments = tracker!.getComments();
+    const lines = tracker!.getLines();
+    const files = tracker!.getFiles();
     // Restituisci il contenuto HTML
-    return getDashboardHtml(this._context, webview, entries, errors, commits, comments);
+    return getDashboardHtml(this._context, webview, entries, errors, lines, files, commits, comments);
   }
 }
