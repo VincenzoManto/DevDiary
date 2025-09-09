@@ -1,3 +1,8 @@
+## [0.3.1] - September 9, 2025
+
+### Changes
+- Release notes generated for version [0.3.1](./.release-notes/0.3.1/release.md)
+
 ## [0.2.0] - September 4, 2025
 
 ### Changes

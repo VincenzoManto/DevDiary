@@ -7,7 +7,7 @@
   "autoCommit": false,
   "baseUrl": ".",
   "omitAuthor": false,
-  "blockIfChangesExist": true,
+  "blockIfChangesExist": false,
   "aiComment": {
     "enabled": false,
     "openAIKey": null,
